@@ -57,12 +57,6 @@ func TorrentSpecFromMetaInfo(mi *metainfo.MetaInfo) *TorrentSpec {
 		InfoBytes:   mi.InfoBytes,
 		DisplayName: info.Name,
 		Webseeds:    mi.UrlList,
-		DhtNodes: func() (ret []string) {
-			ret = make([]string, len(mi.Nodes))
-			for _, node := range mi.Nodes {
-				ret = append(ret, string(node))
-			}
-			return
-		}(),
+		DhtNodes: *(*[]string)(unsafe.Pointer(&mi.Nodes)),
 	}
 }
