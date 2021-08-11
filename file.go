@@ -1,7 +1,6 @@
 package torrent
 
 import (
-	"github.com/RoaringBitmap/roaring"
 	"github.com/anacrolix/missinggo/v2/bitmap"
 
 	"github.com/anacrolix/torrent/metainfo"
@@ -60,32 +59,32 @@ func fileBytesLeft(
 	fileEndPieceIndex int,
 	fileTorrentOffset int64,
 	fileLength int64,
-	torrentCompletedPieces *roaring.Bitmap,
+	torrentCompletedPieces bitmap.Bitmap,
 ) (left int64) {
 	numPiecesSpanned := fileEndPieceIndex - fileFirstPieceIndex
 	switch numPiecesSpanned {
 	case 0:
 	case 1:
-		if !torrentCompletedPieces.Contains(bitmap.BitIndex(fileFirstPieceIndex)) {
+		if !torrentCompletedPieces.Get(bitmap.BitIndex(fileFirstPieceIndex)) {
 			left += fileLength
 		}
 	default:
-		if !torrentCompletedPieces.Contains(bitmap.BitIndex(fileFirstPieceIndex)) {
+		if !torrentCompletedPieces.Get(bitmap.BitIndex(fileFirstPieceIndex)) {
 			left += torrentUsualPieceSize - (fileTorrentOffset % torrentUsualPieceSize)
 		}
-		if !torrentCompletedPieces.Contains(bitmap.BitIndex(fileEndPieceIndex - 1)) {
+		if !torrentCompletedPieces.Get(bitmap.BitIndex(fileEndPieceIndex - 1)) {
 			left += fileTorrentOffset + fileLength - int64(fileEndPieceIndex-1)*torrentUsualPieceSize
 		}
-		completedMiddlePieces := torrentCompletedPieces.Clone()
+		completedMiddlePieces := torrentCompletedPieces.Copy()
 		completedMiddlePieces.RemoveRange(0, bitmap.BitRange(fileFirstPieceIndex+1))
 		completedMiddlePieces.RemoveRange(bitmap.BitRange(fileEndPieceIndex-1), bitmap.ToEnd)
-		left += int64(numPiecesSpanned-2-pieceIndex(completedMiddlePieces.GetCardinality())) * torrentUsualPieceSize
+		left += int64(numPiecesSpanned-2-pieceIndex(completedMiddlePieces.Len())) * torrentUsualPieceSize
 	}
 	return
 }
 
 func (f *File) bytesLeft() (left int64) {
-	return fileBytesLeft(int64(f.t.usualPieceSize()), f.firstPieceIndex(), f.endPieceIndex(), f.offset, f.length, &f.t._completedPieces)
+	return fileBytesLeft(int64(f.t.usualPieceSize()), f.firstPieceIndex(), f.endPieceIndex(), f.offset, f.length, f.t._completedPieces)
 }
 
 // The relative file path for a multi-file torrent, and the torrent name for a

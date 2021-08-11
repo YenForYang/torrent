@@ -174,21 +174,3 @@ func TestUnmarshalByteArray(t *testing.T) {
 	assert.NoError(t, Unmarshal([]byte("2:hi"), &ba))
 	assert.EqualValues(t, "hi", ba[:])
 }
-
-func TestDecodeDictIntoUnsupported(t *testing.T) {
-	// Any type that a dict shouldn't be unmarshallable into.
-	var i int
-	c := qt.New(t)
-	err := Unmarshal([]byte("d1:a1:be"), &i)
-	t.Log(err)
-	c.Check(err, qt.Not(qt.IsNil))
-}
-
-func TestUnmarshalDictKeyNotString(t *testing.T) {
-	// Any type that a dict shouldn't be unmarshallable into.
-	var i int
-	c := qt.New(t)
-	err := Unmarshal([]byte("di42e3:yese"), &i)
-	t.Log(err)
-	c.Check(err, qt.Not(qt.IsNil))
-}

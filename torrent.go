@@ -17,8 +17,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/RoaringBitmap/roaring"
-	"github.com/anacrolix/chansync"
 	"github.com/anacrolix/dht/v2"
 	"github.com/anacrolix/log"
 	"github.com/anacrolix/missinggo/iter"
@@ -133,7 +131,7 @@ type Torrent struct {
 	// file priorities and completion states elsewhere.
 	_pendingPieces prioritybitmap.PriorityBitmap
 	// A cache of completed piece indices.
-	_completedPieces roaring.Bitmap
+	_completedPieces bitmap.Bitmap
 	// Pieces that need to be hashed.
 	piecesQueuedForHash bitmap.Bitmap
 	activePieceHashes   int
@@ -175,6 +173,14 @@ func (t *Torrent) incPieceAvailability(i pieceIndex) {
 		p := t.piece(i)
 		p.availability++
 	}
+}
+
+func (t *Torrent) numConns() int {
+	return len(t.conns)
+}
+
+func (t *Torrent) numReaders() int {
+	return len(t.readers)
 }
 
 func (t *Torrent) readerNowPieces() bitmap.Bitmap {
@@ -242,7 +248,7 @@ func (t *Torrent) setChunkSize(size pp.Integer) {
 }
 
 func (t *Torrent) pieceComplete(piece pieceIndex) bool {
-	return t._completedPieces.Contains(bitmap.BitIndex(piece))
+	return t._completedPieces.Get(bitmap.BitIndex(piece))
 }
 
 func (t *Torrent) pieceCompleteUncached(piece pieceIndex) storage.Completion {
@@ -744,13 +750,9 @@ func (t *Torrent) bytesMissingLocked() int64 {
 	return t.bytesLeft()
 }
 
-func iterFlipped(b *roaring.Bitmap, end uint64, cb func(uint32) bool) {
-	roaring.Flip(b, 0, end).Iterate(cb)
-}
-
 func (t *Torrent) bytesLeft() (left int64) {
-	iterFlipped(&t._completedPieces, uint64(t.numPieces()), func(x uint32) bool {
-		p := t.piece(pieceIndex(x))
+	bitmap.Flip(t._completedPieces, 0, bitmap.BitRange(t.numPieces())).IterTyped(func(piece int) bool {
+		p := &t.pieces[piece]
 		left += int64(p.length() - p.numDirtyBytes())
 		return true
 	})
@@ -785,7 +787,7 @@ func (t *Torrent) numPieces() pieceIndex {
 }
 
 func (t *Torrent) numPiecesCompleted() (num pieceIndex) {
-	return pieceIndex(t._completedPieces.GetCardinality())
+	return pieceIndex(t._completedPieces.Len())
 }
 
 func (t *Torrent) close(wg *sync.WaitGroup) (err error) {
@@ -835,7 +837,7 @@ func (t *Torrent) writeChunk(piece int, begin int64, data []byte) (err error) {
 
 func (t *Torrent) bitfield() (bf []bool) {
 	bf = make([]bool, t.numPieces())
-	t._completedPieces.Iterate(func(piece uint32) (again bool) {
+	t._completedPieces.IterTyped(func(piece int) (again bool) {
 		bf[piece] = true
 		return true
 	})
@@ -892,14 +894,14 @@ func (t *Torrent) hashPiece(piece pieceIndex) (ret metainfo.Hash, err error) {
 }
 
 func (t *Torrent) haveAnyPieces() bool {
-	return t._completedPieces.GetCardinality() != 0
+	return t._completedPieces.Len() != 0
 }
 
 func (t *Torrent) haveAllPieces() bool {
 	if !t.haveInfo() {
 		return false
 	}
-	return t._completedPieces.GetCardinality() == bitmap.BitRange(t.numPieces())
+	return t._completedPieces.Len() == bitmap.BitRange(t.numPieces())
 }
 
 func (t *Torrent) havePiece(index pieceIndex) bool {
@@ -1248,12 +1250,7 @@ func (t *Torrent) updatePieceCompletion(piece pieceIndex) bool {
 	changed := cached != uncached
 	complete := uncached.Complete
 	p.storageCompletionOk = uncached.Ok
-	x := uint32(piece)
-	if complete {
-		t._completedPieces.Add(x)
-	} else {
-		t._completedPieces.Remove(x)
-	}
+	t._completedPieces.Set(bitmap.BitIndex(piece), complete)
 	if complete && len(p.dirtiers) != 0 {
 		t.logger.Printf("marked piece %v complete but still has dirtiers", piece)
 	}
@@ -1362,7 +1359,7 @@ func (t *Torrent) bytesCompleted() int64 {
 	if !t.haveInfo() {
 		return 0
 	}
-	return *t.length - t.bytesLeft()
+	return t.info.TotalLength() - t.bytesLeft()
 }
 
 func (t *Torrent) SetInfoBytes(b []byte) (err error) {
@@ -1648,9 +1645,9 @@ func (t *Torrent) consumeDhtAnnouncePeers(pvs <-chan dht.PeersValues) {
 			}
 		}
 		cl.unlock()
-		// if added != 0 {
-		// 	log.Printf("added %v peers from dht for %v", added, t.InfoHash().HexString())
-		// }
+		if added != 0 {
+			//log.Printf("added %v peers from dht for %v", added, t.InfoHash().HexString())
+		}
 	}
 }
 

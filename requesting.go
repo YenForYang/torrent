@@ -133,9 +133,9 @@ func (p *Peer) applyNextRequestState() bool {
 		more, err := p.request(req)
 		if err != nil {
 			panic(err)
-		} /* else {
-			log.Print(req)
-		} */
+		} else {
+			//log.Print(req)
+		}
 		if !more {
 			return false
 		}

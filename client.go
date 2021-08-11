@@ -456,6 +456,18 @@ func (cl *Client) wantConns() bool {
 	return false
 }
 
+func (cl *Client) waitAccept() {
+	for {
+		if cl.closed.IsSet() {
+			return
+		}
+		if cl.wantConns() {
+			return
+		}
+		cl.event.Wait()
+	}
+}
+
 // TODO: Apply filters for non-standard networks, particularly rate-limiting.
 func (cl *Client) rejectAccepted(conn net.Conn) error {
 	if !cl.wantConns() {
@@ -537,11 +549,7 @@ func (cl *Client) incomingConnection(nc net.Conn) {
 	}
 	c := cl.newConnection(nc, false, nc.RemoteAddr(), nc.RemoteAddr().Network(),
 		regularNetConnPeerConnConnString(nc))
-	defer func() {
-		cl.lock()
-		defer cl.unlock()
-		c.close()
-	}()
+	defer c.close()
 	c.Discovery = PeerSourceIncoming
 	cl.runReceivedConn(c)
 }
@@ -919,11 +927,11 @@ func (cl *Client) runHandshookConn(c *PeerConn, t *Torrent) error {
 			connsToSelf.Add(1)
 			addr := c.conn.RemoteAddr().String()
 			cl.dopplegangerAddrs[addr] = struct{}{}
-		} /* else {
+		} else {
 			// Because the remote address is not necessarily the same as its client's torrent listen
 			// address, we won't record the remote address as a doppleganger. Instead, the initiator
 			// can record *us* as the doppleganger.
-		} */
+		}
 		return errors.New("local and remote peer ids are the same")
 	}
 	c.conn.SetWriteDeadline(time.Time{})
@@ -1424,6 +1432,14 @@ func firstNotNil(ips ...net.IP) net.IP {
 		}
 	}
 	return nil
+}
+
+func (cl *Client) eachDialer(f func(Dialer) bool) {
+	for _, s := range cl.dialers {
+		if !f(s) {
+			break
+		}
+	}
 }
 
 func (cl *Client) eachListener(f func(Listener) bool) {

@@ -202,7 +202,7 @@ func New(dirName string) (i *Instance, err error) {
 		w:        w,
 		dirName:  dirName,
 		Events:   make(chan Event),
-		dirState: make(map[metainfo.Hash]entity),
+		dirState: make(map[metainfo.Hash]entity, 0),
 		Logger:   log.Default,
 	}
 	go func() {
