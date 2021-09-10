@@ -4,22 +4,24 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 
 	"github.com/anacrolix/torrent/metainfo"
 )
 
 func trailingPath(infoName string, pathComps []string) string {
-	return path.Join(
-		func() (ret []string) {
-			for _, comp := range append([]string{infoName}, pathComps...) {
-				ret = append(ret, url.QueryEscape(comp))
-			}
-			return
-		}()...,
-	)
+	var sb strings.Builder
+	sb.WriteString(url.QueryEscape(infoName))
+	for i := 0; i < len(pathComps); i += 1 {
+		if pathComps[i] == "" {
+			continue
+		}
+		sb.WriteByte('/')
+		sb.WriteString(url.QueryEscape(pathComps[i]))
+	}
+	return sb.String()
 }
+
 
 // Creates a request per BEP 19.
 func NewRequest(url_ string, fileIndex int, info *metainfo.Info, offset, length int64) (*http.Request, error) {
