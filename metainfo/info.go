@@ -17,7 +17,7 @@ type Info struct {
 	Pieces      []byte `bencode:"pieces"`            // BEP3
 	Name        string `bencode:"name"`              // BEP3
 	Length      int64  `bencode:"length,omitempty"`  // BEP3, mutually exclusive with Files
-	Private     *bool  `bencode:"private,omitempty"` // BEP27
+	Private     bool   `bencode:"private,omitempty"` // BEP27
 	// TODO: Document this field.
 	Source string     `bencode:"source,omitempty"`
 	Files  []FileInfo `bencode:"files,omitempty"` // BEP3, mutually exclusive with Length
