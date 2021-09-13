@@ -154,22 +154,21 @@ func (p *Piece) bytesLeft() (ret pp.Integer) {
 
 // Forces the piece data to be rehashed.
 func (p *Piece) VerifyData() {
-	p.t.cl.lock()
-	defer p.t.cl.unlock()
+	t := p.t
+	cl := t.cl
+	cl.lock()
 	target := p.numVerifies + 1
 	if p.hashing {
 		target++
 	}
 	//log.Printf("target: %d", target)
-	p.t.queuePieceCheck(p.index)
-	for {
+	t.queuePieceCheck(p.index)
+	for p.numVerifies < target {
 		//log.Printf("got %d verifies", p.numVerifies)
-		if p.numVerifies >= target {
-			break
-		}
-		p.t.cl.event.Wait()
+		cl.event.Wait()
 	}
 	// log.Print("done")
+	cl.unlock()
 }
 
 func (p *Piece) queuedForHash() bool {
